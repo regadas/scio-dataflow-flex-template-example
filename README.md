@@ -2,11 +2,6 @@
 
 ## Usage
 
-Define the following variables under `Makefile`:
+Run `make project=$GCP_PROJECT bucket=$GCS_BUCKET [region=us-central1]` to build, create and run the template.
 
-```bash
-PROJECT=<gcp project>
-BUCKET=<gcs bucket>
-```
-
-Run `make` to build, create and run the template. Requires `docker`.
+__NOTE__: requires `docker`
