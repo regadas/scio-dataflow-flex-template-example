@@ -11,7 +11,7 @@ assembly:
 
 docker-image:
 	docker build -t $(template_image) .
-    docker push $(template_image)
+	docker push $(template_image)
 
 build: assembly docker-image
 	
