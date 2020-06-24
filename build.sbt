@@ -1,10 +1,17 @@
 import sbt._
 import Keys._
 import com.typesafe.sbt.packager.docker._
+import scala.sys.process._
+import complete.DefaultParsers._
 
 val scioVersion = "0.9.1"
 val beamVersion = "2.20.0"
 val scalaMacrosVersion = "2.1.1"
+
+lazy val gcpProject = settingKey[String]("GCP Project")
+lazy val gcpRegion = settingKey[String]("GCP region")
+lazy val createFlextTemplate = inputKey[Unit]("create flex-template")
+lazy val runFlextTemplate = inputKey[Unit]("run flex-template")
 
 lazy val commonSettings = Def.settings(
   organization := "com.spotify",
@@ -21,6 +28,8 @@ lazy val commonSettings = Def.settings(
 )
 
 lazy val assemblySettings = Def.settings(
+  gcpProject := "",
+  gcpRegion := "",
   assembly / test := {},
   assembly / assemblyJarName := "flex-wordcount.jar",
   assembly / assemblyMergeStrategy ~= { old =>
@@ -40,7 +49,7 @@ lazy val assemblySettings = Def.settings(
     }
     filtered :+ (fatJar -> (s"lib/${fatJar.getName}"))
   },
-  Docker / packageName := s"gcr.io/${sys.props("gcp.project")}/dataflow/templates/flex-template",
+  Docker / packageName := s"gcr.io/${gcpProject.value}/dataflow/templates/flex-template",
   Docker / dockerCommands := Seq(
     Cmd(
       "FROM",
@@ -61,7 +70,22 @@ lazy val assemblySettings = Def.settings(
       s"1/opt/docker/lib/${(assembly / assemblyJarName).value}",
       "${FLEX_TEMPLATE_JAVA_CLASSPATH}"
     )
-  )
+  ),
+  createFlextTemplate := {
+    val _ = (Docker / publish).value
+    s"""gcloud beta dataflow flex-template build 
+          gs://${gcpProject.value}/dataflow/templates/${name.value}.json
+          --image ${dockerAlias.value}
+          --sdk-language JAVA
+          --metadata-file metadata.json""" !
+  },
+  runFlextTemplate := {
+    val parameters = spaceDelimited("<arg>").parsed
+    s"""gcloud beta dataflow flex-template run ${name.value}
+    	--template-file-gcs-location gs://${gcpProject.value}/dataflow/templates/${name.value}.json
+    	--region=${gcpRegion.value}
+    	--parameters ${parameters.mkString(",")}""" !
+  }
 )
 
 lazy val root: Project = project

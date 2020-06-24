@@ -2,31 +2,53 @@
 
 ## Usage
 
-Run `make project=$GCP_PROJECT [region=us-central1]` to build, create and run the template.
+### Setup
 
-* builds & publishes docker image with `gcr.io/${project}/dataflow/templates/flex-template:VERSION` tag.
-    
-    ```bash
-    sbt docker:publish
-    ```
+```sbt
+set gcpProject := "<YOUR PROJECT>"
+set gcpRegion := "europe-west1"
+```
 
-* creates the `flex-template`
+### Creating the template
 
-    ```bash
-    gcloud beta dataflow flex-template build $(template_path) \
-        --image `sbt -Dgcp.project=$(project) dockerAlias | tail -n 1 | cut -d' ' -f2` \
-        --sdk-language "JAVA" \
-        --metadata-file "metadata.json"
-    ```
+```bash
+sbt createFlexTemplate
+```
 
-* triggers a job run
-    
-    ```bash
-    gcloud beta dataflow flex-template run "flex-wordcount-`date +%Y%m%d-%H%M%S`" \
-        --template-file-gcs-location "$(template_path)" \
-        --region=$(region) \
-        --parameters input=gs://dataflow-samples/shakespeare/kinglear.txt  \
-        --parameters output=gs://$(project)/dataflow/flex-wordcount/output
-    ```
+Will build the docker image and publish it to [Google Container Registry](https://cloud.google.com/container-registry)
 
-⚠️ This is a somewhat opinionated example, modify it to your own needs.
+JSON template will be uploaded to `gs://<YOUR PROJECT>/dataflow/templates/flex-template.json`
+
+Example output:
+
+```json
+{
+    "image": "gcr.io/<YOUR PROJECT>/dataflow/templates/flex-template:0.1.0-SNAPSHOT",
+    "metadata": {
+        "name": "WordCount Example",
+        "parameters": [
+            {
+                "helpText": "GCS input text file",
+                "label": "GCS input text file",
+                "name": "input"
+            },
+            {
+                "helpText": "GCS output text file",
+                "label": "GCS output text file",
+                "name": "output"
+            }
+        ]
+    },
+    "sdkInfo": {
+        "language": "JAVA"
+    }
+}
+```
+
+### Triggering a run!
+
+```bash
+sbt runFlextTemplate input=gs://dataflow-samples/shakespeare/kinglear.txt output=gs://<OUTPUT>
+```
+
+⚠️ This is a somewhat opinionated example, check [build.sbt](build.sbt) and modify it to your own needs.
