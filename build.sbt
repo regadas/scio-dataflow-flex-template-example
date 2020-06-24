@@ -1,12 +1,13 @@
 import sbt._
 import Keys._
+import com.typesafe.sbt.packager.docker._
 
 val scioVersion = "0.9.1"
 val beamVersion = "2.20.0"
 val scalaMacrosVersion = "2.1.1"
+
 lazy val commonSettings = Def.settings(
   organization := "com.spotify",
-  // Semantic versioning http://semver.org/
   version := "0.1.0-SNAPSHOT",
   scalaVersion := "2.13.2",
   scalacOptions ++= Seq(
@@ -18,6 +19,7 @@ lazy val commonSettings = Def.settings(
   ),
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
 )
+
 lazy val assemblySettings = Def.settings(
   assembly / test := {},
   assembly / assemblyJarName := "flex-wordcount.jar",
@@ -30,7 +32,36 @@ lazy val assemblySettings = Def.settings(
       case s if s.endsWith(".proto") => MergeStrategy.last
       case s                         => old(s)
     }
-  }
+  },
+  Universal / mappings := {
+    val fatJar = (Compile / assembly).value
+    val filtered = (Universal / mappings).value.filter {
+      case (_, name) => !name.endsWith(".jar")
+    }
+    filtered :+ (fatJar -> (s"lib/${fatJar.getName}"))
+  },
+  Docker / packageName := s"gcr.io/${sys.props("gcp.project")}/dataflow/templates/flex-template",
+  Docker / dockerCommands := Seq(
+    Cmd(
+      "FROM",
+      "gcr.io/dataflow-templates-base/java11-template-launcher-base:latest"
+    ),
+    Cmd(
+      "ENV",
+      "FLEX_TEMPLATE_JAVA_MAIN_CLASS",
+      (assembly / mainClass).value.getOrElse("")
+    ),
+    Cmd(
+      "ENV",
+      "FLEX_TEMPLATE_JAVA_CLASSPATH",
+      s"/template/${(assembly / assemblyJarName).value}"
+    ),
+    ExecCmd(
+      "COPY",
+      s"1/opt/docker/lib/${(assembly / assemblyJarName).value}",
+      "${FLEX_TEMPLATE_JAVA_CLASSPATH}"
+    )
+  )
 )
 
 lazy val root: Project = project
@@ -50,7 +81,8 @@ lazy val root: Project = project
       "org.slf4j" % "slf4j-simple" % "1.7.25"
     )
   )
-  .enablePlugins(PackPlugin)
+  .enablePlugins(JavaAppPackaging)
+  .enablePlugins(DockerPlugin)
 
 lazy val repl: Project = project
   .in(file(".repl"))

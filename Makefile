@@ -1,23 +1,16 @@
 
 region?=us-central1
 
-template_path=gs://$(bucket)/dataflow/templates/flex-wordcount.json
-template_image=gcr.io/$(project)/dataflow/templates/flex-wordcount:latest
+template_path=gs://$(project)/dataflow/templates/flex-wordcount.json
 
 all: run
 
-assembly: 
-	sbt assembly
-
-docker-image:
-	docker build -t $(template_image) .
-	docker push $(template_image)
-
-build: assembly docker-image
+build:
+	sbt -Dgcp.project=$(project) docker:publish
 	
 create-template: build
 	gcloud beta dataflow flex-template build $(template_path) \
-  		--image "$(template_image)" \
+  		--image `sbt -Dgcp.project=$(project) dockerAlias | tail -n 1 | cut -d' ' -f2` \
   		--sdk-language "JAVA" \
   		--metadata-file "metadata.json"
 
@@ -26,4 +19,4 @@ run: create-template
   		--template-file-gcs-location "$(template_path)" \
   		--region=$(region) \
   		--parameters input=gs://dataflow-samples/shakespeare/kinglear.txt  \
-  		--parameters output=gs://$(bucket)/dataflow/flex-wordcount/output
+  		--parameters output=gs://$(project)/dataflow/flex-wordcount/output
